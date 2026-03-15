@@ -63,7 +63,7 @@ model Conversation {
   messages Message[] //zatra make blocak noreche
 
     // New field
-  is_pro String? @default(null)
+  is_pro String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

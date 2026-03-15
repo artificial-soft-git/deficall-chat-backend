@@ -406,7 +406,7 @@ export const createGroupChat = async (request, reply) => {
         avatar: avatar,
         adminIds: [adminIdInt],
         isGroup: true, // Don't forget to set this to true for group chats
-        is_pro: is_pro,
+        is_pro: is_pro != null ? String(is_pro) : null,
         members: {
           create: allUserIds.map((id) => ({
             userId: id,
@@ -490,7 +490,7 @@ export const createGroupChat = async (request, reply) => {
   } catch (error) {
     return reply.status(500).send({
       success: false,
-      message: error,
+      message: "Something Went Wrong",
       error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }

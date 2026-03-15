@@ -62,6 +62,9 @@ model Conversation {
   members  ConversationMember[] //jader ami block korechi
   messages Message[] //zatra make blocak noreche
 
+    // New field
+  is_pro String? @default(null)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   calls     Call[]

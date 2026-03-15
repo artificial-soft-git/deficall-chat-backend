@@ -329,7 +329,7 @@ const sendSuccessResponse = (
 
 export const createGroupChat = async (request, reply) => {
   try {
-    const { name, userIds, adminId } = request.body;
+    const { name, userIds, adminId, is_pro } = request.body;
     const prisma = request.server.prisma;
 
     // Parse userIds first
@@ -406,6 +406,7 @@ export const createGroupChat = async (request, reply) => {
         avatar: avatar,
         adminIds: [adminIdInt],
         isGroup: true, // Don't forget to set this to true for group chats
+        is_pro: is_pro,
         members: {
           create: allUserIds.map((id) => ({
             userId: id,

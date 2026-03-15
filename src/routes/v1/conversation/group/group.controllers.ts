@@ -490,7 +490,7 @@ export const createGroupChat = async (request, reply) => {
   } catch (error) {
     return reply.status(500).send({
       success: false,
-      message: "Failed to create group chat",
+      message: error,
       error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }

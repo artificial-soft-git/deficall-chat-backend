@@ -501,7 +501,7 @@ const sendSuccessResponse = (
 
 export const createGroupChat = async (request, reply) => {
   try {
-    const { name, userIds, adminId, is_pro } = request.body;
+    const { name, userIds, adminId, is_pro, price } = request.body;
     const prisma = request.server.prisma;
 
     if (!userIds || !adminId) {
@@ -548,6 +548,7 @@ export const createGroupChat = async (request, reply) => {
 
     // Ensure is_pro is string or null
     const isProValue = is_pro != null ? String(is_pro) : null;
+    const priceValue = price != null ? String(price) : null;
 
     const conversation = await prisma.conversation.create({
       data: {
@@ -556,6 +557,7 @@ export const createGroupChat = async (request, reply) => {
         adminIds: [adminIdInt],
         isGroup: true,
         is_pro: isProValue,
+        price: priceValue,
         members: {
           create: allUserIds.map((id) => ({
             userId: id,
@@ -614,7 +616,7 @@ export const createGroupChat = async (request, reply) => {
     console.error("Full error:", error);
     return reply.status(500).send({
       success: false,
-      message: error,
+      message: "Something went wrong",
       error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }

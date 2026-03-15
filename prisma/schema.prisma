@@ -64,6 +64,8 @@ model Conversation {
 
     // New field
   is_pro String?
+  
+  price String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

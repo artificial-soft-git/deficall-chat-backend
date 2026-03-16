@@ -621,23 +621,35 @@ const sendSuccessResponse = (
 //     });
 //   }
 // };
-
-
 export const createGroupChat = async (request, reply) => {
   try {
     const { name, userIds, adminId, is_pro, price } = request.body;
     const prisma = request.server.prisma;
 
-    // adminId must
-    if (!adminId) {
+    // Validate required fields
+    if (!userIds || !adminId) {
       return reply.status(400).send({
         success: false,
-        message: "adminId is required",
+        message: "userIds and adminId are required",
       });
     }
 
-    // parse adminId
+    // Parse and validate userIds
+    let userIdArray;
+    try {
+      userIdArray = Array.isArray(userIds) ? userIds : JSON.parse(userIds);
+    } catch (error) {
+      return reply.status(400).send({
+        success: false,
+        message: "userIds must be a valid JSON array",
+      });
+    }
+
+    // Convert userIds to integers and filter invalid ids
+    const userIdsInt = userIdArray.map(Number).filter((id) => !isNaN(id));
     const adminIdInt = parseInt(adminId);
+
+    // Validate adminId
     if (isNaN(adminIdInt)) {
       return reply.status(400).send({
         success: false,
@@ -645,60 +657,18 @@ export const createGroupChat = async (request, reply) => {
       });
     }
 
-    // parse userIds conditionally
-    let userIdArray = [];
-
-    if (is_pro === "yes") {
-      // pro group → optional
-      if (userIds) {
-        try {
-          userIdArray = Array.isArray(userIds)
-            ? userIds
-            : JSON.parse(userIds);
-        } catch (e) {
-          return reply.status(400).send({
-            success: false,
-            message: "userIds must be valid JSON array",
-          });
-        }
-      }
-    } else {
-      // normal group → required
-      if (!userIds) {
-        return reply.status(400).send({
-          success: false,
-          message: "userIds is required for normal group",
-        });
-      }
-
-      try {
-        userIdArray = Array.isArray(userIds)
-          ? userIds
-          : JSON.parse(userIds);
-      } catch (e) {
-        return reply.status(400).send({
-          success: false,
-          message: "userIds must be valid JSON array",
-        });
-      }
-    }
-
-    // convert to int
-    const userIdsInt = userIdArray
-      .map((id) => parseInt(id))
-      .filter((id) => !isNaN(id));
-
-    if (is_pro !== "yes" && userIdsInt.length === 0) {
+    // Ensure there are valid userIds
+    if (userIdsInt.length === 0) {
       return reply.status(400).send({
         success: false,
         message: "userIds must be non-empty",
       });
     }
 
-    // final members (admin always included)
+    // Include the adminId in the userIds list (no duplicates)
     const allUserIds = [...new Set([...userIdsInt, adminIdInt])];
 
-    // check users exist
+    // Check if users exist in the database
     const usersExist = await prisma.user.findMany({
       where: { id: { in: allUserIds } },
     });
@@ -710,12 +680,14 @@ export const createGroupChat = async (request, reply) => {
       });
     }
 
+    // Get the avatar file, if present
     const avatar = request.file?.filename || null;
 
+    // Ensure 'is_pro' and 'price' are strings or null
     const isProValue = is_pro != null ? String(is_pro) : null;
     const priceValue = price != null ? String(price) : null;
 
-    // create group
+    // Create the conversation
     const conversation = await prisma.conversation.create({
       data: {
         name: name || null,
@@ -732,11 +704,15 @@ export const createGroupChat = async (request, reply) => {
         },
       },
       include: {
-        members: { include: { user: true } },
+        members: {
+          include: {
+            user: true,
+          },
+        },
       },
     });
 
-    // format response
+    // Format the conversation response
     const formattedConversation = {
       ...conversation,
       avatar: conversation.avatar ? getImageUrl(conversation.avatar) : null,
@@ -754,29 +730,27 @@ export const createGroupChat = async (request, reply) => {
       messages: [],
     };
 
-    // socket emit
+    // Emit socket event for conversation creation
     setImmediate(() => {
       try {
         const creatorId = adminIdInt;
-
         const recipientIds = conversation.members
           .filter((m) => m.userId !== creatorId)
           .map((m) => m.userId.toString());
 
         if (recipientIds.length > 0) {
-          request.server.io
-            .to(recipientIds)
-            .emit("conversation_created", {
-              success: true,
-              message: "Group chat created successfully",
-              data: formattedConversation,
-            });
+          request.server.io.to(recipientIds).emit("conversation_created", {
+            success: true,
+            message: "Group chat created successfully",
+            data: formattedConversation,
+          });
         }
-      } catch (e) {
-        request.log.error(e, "Socket emit error");
+      } catch (error) {
+        request.log.error(error, "Socket emit error");
       }
     });
 
+    // Return success response
     return reply.status(201).send({
       success: true,
       message: "Group chat created successfully",
@@ -784,19 +758,17 @@ export const createGroupChat = async (request, reply) => {
     });
   } catch (error) {
     console.error("Full error:", error);
+
     return reply.status(500).send({
       success: false,
       message: "Something went wrong",
-      error:
-        process.env.NODE_ENV === "development"
-          ? error.message
-          : undefined,
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };
 
 // ============================================================================
-// UPDATE GROUP PERMISSIONS HELPERSs
+// UPDATE GROUP PERMISSIONS HELPERS
 // ============================================================================
 
 export const updateGroupPermissions = async (request: any, reply: any) => {

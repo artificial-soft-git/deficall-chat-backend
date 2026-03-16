@@ -499,57 +499,223 @@ const sendSuccessResponse = (
 
 //new code
 
+// export const createGroupChat = async (request, reply) => {
+//   try {
+//     const { name, userIds, adminId, is_pro, price } = request.body;
+//     const prisma = request.server.prisma;
+
+//     if (!userIds || !adminId) {
+//       return reply.status(400).send({
+//         success: false,
+//         message: "userIds and adminId are required",
+//       });
+//     }
+
+//     // Parse userIds
+//     let userIdArray;
+//     try {
+//       userIdArray = Array.isArray(userIds) ? userIds : JSON.parse(userIds);
+//     } catch (e) {
+//       return reply.status(400).send({
+//         success: false,
+//         message: "userIds must be a valid JSON array",
+//       });
+//     }
+
+//     // Convert to integers
+//     const userIdsInt = userIdArray.map((id) => parseInt(id)).filter((id) => !isNaN(id));
+//     const adminIdInt = parseInt(adminId);
+//     if (isNaN(adminIdInt)) {
+//       return reply.status(400).send({ success: false, message: "Invalid adminId" });
+//     }
+
+//     if (userIdsInt.length === 0) {
+//       return reply.status(400).send({ success: false, message: "userIds must be non-empty" });
+//     }
+
+//     const allUserIds = [...new Set([...userIdsInt, adminIdInt])];
+
+//     // Check if users exist
+//     const usersExist = await prisma.user.findMany({
+//       where: { id: { in: allUserIds } },
+//     });
+
+//     if (usersExist.length !== allUserIds.length) {
+//       return reply.status(404).send({ success: false, message: "Some users not found" });
+//     }
+
+//     const avatar = request.file?.filename || null;
+
+//     // Ensure is_pro is string or null
+//     const isProValue = is_pro != null ? String(is_pro) : null;
+//     const priceValue = price != null ? String(price) : null;
+
+//     const conversation = await prisma.conversation.create({
+//       data: {
+//         name: name || null,
+//         avatar,
+//         adminIds: [adminIdInt],
+//         isGroup: true,
+//         is_pro: isProValue,
+//         price: priceValue,
+//         members: {
+//           create: allUserIds.map((id) => ({
+//             userId: id,
+//             isAdmin: id === adminIdInt,
+//           })),
+//         },
+//       },
+//       include: {
+//         members: { include: { user: true } },
+//       },
+//     });
+
+//     const formattedConversation = {
+//       ...conversation,
+//       avatar: conversation.avatar ? getImageUrl(conversation.avatar) : null,
+//       members: conversation.members.map((member) => ({
+//         ...member,
+//         user: member.user
+//           ? {
+//               ...member.user,
+//               avatar: member.user.avatar
+//                 ? FileService.avatarUrl(member.user.avatar)
+//                 : null,
+//             }
+//           : null,
+//       })),
+//       messages: [],
+//     };
+
+//     // Emit socket
+//     setImmediate(() => {
+//       try {
+//         const creatorId = adminIdInt;
+//         const recipientIds = conversation.members
+//           .filter((m) => m.userId !== creatorId)
+//           .map((m) => m.userId.toString());
+
+//         if (recipientIds.length > 0) {
+//           request.server.io.to(recipientIds).emit("conversation_created", {
+//             success: true,
+//             message: "Group chat created successfully",
+//             data: formattedConversation,
+//           });
+//         }
+//       } catch (e) {
+//         request.log.error(e, "Socket emit error");
+//       }
+//     });
+
+//     return reply.status(201).send({
+//       success: true,
+//       message: "Group chat created successfully",
+//       data: formattedConversation,
+//     });
+//   } catch (error) {
+//     console.error("Full error:", error);
+//     return reply.status(500).send({
+//       success: false,
+//       message: "Something went wrong",
+//       error: process.env.NODE_ENV === "development" ? error.message : undefined,
+//     });
+//   }
+// };
+
+
 export const createGroupChat = async (request, reply) => {
   try {
     const { name, userIds, adminId, is_pro, price } = request.body;
     const prisma = request.server.prisma;
 
-    if (!userIds || !adminId) {
+    // adminId must
+    if (!adminId) {
       return reply.status(400).send({
         success: false,
-        message: "userIds and adminId are required",
+        message: "adminId is required",
       });
     }
 
-    // Parse userIds
-    let userIdArray;
-    try {
-      userIdArray = Array.isArray(userIds) ? userIds : JSON.parse(userIds);
-    } catch (e) {
-      return reply.status(400).send({
-        success: false,
-        message: "userIds must be a valid JSON array",
-      });
-    }
-
-    // Convert to integers
-    const userIdsInt = userIdArray.map((id) => parseInt(id)).filter((id) => !isNaN(id));
+    // parse adminId
     const adminIdInt = parseInt(adminId);
     if (isNaN(adminIdInt)) {
-      return reply.status(400).send({ success: false, message: "Invalid adminId" });
+      return reply.status(400).send({
+        success: false,
+        message: "Invalid adminId",
+      });
     }
 
-    if (userIdsInt.length === 0) {
-      return reply.status(400).send({ success: false, message: "userIds must be non-empty" });
+    // parse userIds conditionally
+    let userIdArray = [];
+
+    if (is_pro === "yes") {
+      // pro group → optional
+      if (userIds) {
+        try {
+          userIdArray = Array.isArray(userIds)
+            ? userIds
+            : JSON.parse(userIds);
+        } catch (e) {
+          return reply.status(400).send({
+            success: false,
+            message: "userIds must be valid JSON array",
+          });
+        }
+      }
+    } else {
+      // normal group → required
+      if (!userIds) {
+        return reply.status(400).send({
+          success: false,
+          message: "userIds is required for normal group",
+        });
+      }
+
+      try {
+        userIdArray = Array.isArray(userIds)
+          ? userIds
+          : JSON.parse(userIds);
+      } catch (e) {
+        return reply.status(400).send({
+          success: false,
+          message: "userIds must be valid JSON array",
+        });
+      }
     }
 
+    // convert to int
+    const userIdsInt = userIdArray
+      .map((id) => parseInt(id))
+      .filter((id) => !isNaN(id));
+
+    if (is_pro !== "yes" && userIdsInt.length === 0) {
+      return reply.status(400).send({
+        success: false,
+        message: "userIds must be non-empty",
+      });
+    }
+
+    // final members (admin always included)
     const allUserIds = [...new Set([...userIdsInt, adminIdInt])];
 
-    // Check if users exist
+    // check users exist
     const usersExist = await prisma.user.findMany({
       where: { id: { in: allUserIds } },
     });
 
     if (usersExist.length !== allUserIds.length) {
-      return reply.status(404).send({ success: false, message: "Some users not found" });
+      return reply.status(404).send({
+        success: false,
+        message: "Some users not found",
+      });
     }
 
     const avatar = request.file?.filename || null;
 
-    // Ensure is_pro is string or null
     const isProValue = is_pro != null ? String(is_pro) : null;
     const priceValue = price != null ? String(price) : null;
 
+    // create group
     const conversation = await prisma.conversation.create({
       data: {
         name: name || null,
@@ -570,6 +736,7 @@ export const createGroupChat = async (request, reply) => {
       },
     });
 
+    // format response
     const formattedConversation = {
       ...conversation,
       avatar: conversation.avatar ? getImageUrl(conversation.avatar) : null,
@@ -587,20 +754,23 @@ export const createGroupChat = async (request, reply) => {
       messages: [],
     };
 
-    // Emit socket
+    // socket emit
     setImmediate(() => {
       try {
         const creatorId = adminIdInt;
+
         const recipientIds = conversation.members
           .filter((m) => m.userId !== creatorId)
           .map((m) => m.userId.toString());
 
         if (recipientIds.length > 0) {
-          request.server.io.to(recipientIds).emit("conversation_created", {
-            success: true,
-            message: "Group chat created successfully",
-            data: formattedConversation,
-          });
+          request.server.io
+            .to(recipientIds)
+            .emit("conversation_created", {
+              success: true,
+              message: "Group chat created successfully",
+              data: formattedConversation,
+            });
         }
       } catch (e) {
         request.log.error(e, "Socket emit error");
@@ -617,7 +787,10 @@ export const createGroupChat = async (request, reply) => {
     return reply.status(500).send({
       success: false,
       message: "Something went wrong",
-      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : undefined,
     });
   }
 };

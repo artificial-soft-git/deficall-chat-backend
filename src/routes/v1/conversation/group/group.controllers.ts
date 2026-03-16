@@ -796,7 +796,7 @@ export const createGroupChat = async (request, reply) => {
 };
 
 // ============================================================================
-// UPDATE GROUP PERMISSIONS HELPERS
+// UPDATE GROUP PERMISSIONS HELPERSs
 // ============================================================================
 
 export const updateGroupPermissions = async (request: any, reply: any) => {

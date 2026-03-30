@@ -687,7 +687,7 @@ export const createGroupChat = async (request, reply) => {
     const isProValue = is_pro != null ? String(is_pro) : null;
     const priceValue = price != null ? String(price) : null;
     const descriptionValue = description != null ? String(description) : null;
-
+    const createdBy = adminId != null ? String(adminId) : null;
     // Create the conversation
     const conversation = await prisma.conversation.create({
       data: {
@@ -698,6 +698,7 @@ export const createGroupChat = async (request, reply) => {
         is_pro: isProValue,
         price: priceValue,
         description: descriptionValue,
+        created_by: createdBy,
         members: {
           create: allUserIds.map((id) => ({
             userId: id,

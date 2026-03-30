@@ -67,6 +67,8 @@ model Conversation {
   
   price String?
 
+  created_by String?
+
   description String? @db.Text
 
   createdAt DateTime @default(now())

@@ -623,7 +623,7 @@ const sendSuccessResponse = (
 // };
 export const createGroupChat = async (request, reply) => {
   try {
-    const { name, userIds, adminId, is_pro, price } = request.body;
+    const { name, userIds, adminId, is_pro, price, description } = request.body;
     const prisma = request.server.prisma;
 
     // Validate required fields
@@ -686,6 +686,7 @@ export const createGroupChat = async (request, reply) => {
     // Ensure 'is_pro' and 'price' are strings or null
     const isProValue = is_pro != null ? String(is_pro) : null;
     const priceValue = price != null ? String(price) : null;
+    const descriptionValue = description != null ? String(description) : null;
 
     // Create the conversation
     const conversation = await prisma.conversation.create({
@@ -696,6 +697,7 @@ export const createGroupChat = async (request, reply) => {
         isGroup: true,
         is_pro: isProValue,
         price: priceValue,
+        description: descriptionValue,
         members: {
           create: allUserIds.map((id) => ({
             userId: id,

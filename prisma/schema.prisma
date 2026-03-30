@@ -67,6 +67,8 @@ model Conversation {
   
   price String?
 
+  description String? @db.Text
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   calls     Call[]

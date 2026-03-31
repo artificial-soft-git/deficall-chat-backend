@@ -782,12 +782,15 @@ export const updateGroupPermissions = async (request: any, reply: any) => {
       allowMemberAdd,
       allowMemberMessage,
       allowEditGroupInfo,
+      allowMemberShow, // new field
     } = request.body;
+
     const prisma = request.server.prisma;
 
     const missingField = ["conversationId", "adminId"].find(
       (field) => !request.body[field]
     );
+
     if (missingField) {
       return reply.status(400).send({
         success: false,
@@ -795,16 +798,22 @@ export const updateGroupPermissions = async (request: any, reply: any) => {
       });
     }
 
-    ["allowMemberAdd", "allowMemberMessage", "allowEditGroupInfo"].forEach(
-      (field) => {
-        if (typeof request.body[field] !== "boolean") {
-          return reply.status(400).send({
-            success: false,
-            message: `${field} must be a boolean`,
-          });
-        }
+    [
+      "allowMemberAdd",
+      "allowMemberMessage",
+      "allowEditGroupInfo",
+      "allowMemberShow", // new field
+    ].forEach((field) => {
+      if (
+        request.body[field] !== undefined &&
+        typeof request.body[field] !== "boolean"
+      ) {
+        return reply.status(400).send({
+          success: false,
+          message: `${field} must be a boolean`,
+        });
       }
-    );
+    });
 
     const conversation = await prisma.conversation.findFirst({
       where: { id: conversationId, isGroup: true },
@@ -824,7 +833,7 @@ export const updateGroupPermissions = async (request: any, reply: any) => {
         isAdmin: true,
       },
     });
-    console.log(isAdmin);
+
     if (!isAdmin) {
       return reply.status(403).send({
         success: false,
@@ -839,18 +848,24 @@ export const updateGroupPermissions = async (request: any, reply: any) => {
           allowMemberAdd !== undefined
             ? allowMemberAdd
             : conversation.allowMemberAdd,
+
         allowMemberMessage:
           allowMemberMessage !== undefined
             ? allowMemberMessage
             : conversation.allowMemberMessage,
+
         allowEditGroupInfo:
           allowEditGroupInfo !== undefined
             ? allowEditGroupInfo
             : conversation.allowEditGroupInfo,
+
+        allowMemberShow:
+          allowMemberShow !== undefined
+            ? allowMemberShow
+            : conversation.allowMemberShow, // new field
       },
     });
 
-    // Fetch members for socket event
     const members = await prisma.conversationMember.findMany({
       where: {
         conversationId: conversationId,
@@ -861,7 +876,6 @@ export const updateGroupPermissions = async (request: any, reply: any) => {
       },
     });
 
-    //socket event to all group members
     setImmediate(() => {
       try {
         const recipientIds = members
@@ -881,8 +895,6 @@ export const updateGroupPermissions = async (request: any, reply: any) => {
           request.server.io
             .to(recipientIds)
             .emit("group_permissions_updated", socketData);
-          console.log("recipientIds", recipientIds);
-          console.log("updatedConversation", socketData);
         }
       } catch (error) {
         request.log.error(

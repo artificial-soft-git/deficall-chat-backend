@@ -249,7 +249,7 @@ export const createGroupChat = async (request: any, reply: any) => {
         body: new URLSearchParams({
           user_name,
           password,
-          amount: "1",
+          amount: "10",
         }),
       }
     );

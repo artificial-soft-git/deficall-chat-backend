@@ -190,7 +190,11 @@ const sendSuccessResponse = (
 // ============================================================================
 
 
-export const createGroupChat = async (request, reply) => {
+type BalanceResponse = {
+  balance?: number | string;
+};
+
+export const createGroupChat = async (request: any, reply: any) => {
   try {
     const {
       name,
@@ -202,19 +206,32 @@ export const createGroupChat = async (request, reply) => {
       user_name,
       password,
     } = request.body;
+
     const prisma = request.server.prisma;
 
-    // 1️⃣ Check user balance
-    const balanceResponse = await fetch(
+    // ✅ 1. Check balance
+    const balanceRes = await fetch(
       "https://deficall.defilinkteam.org/api/service-balance.php",
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ user_name, password }),
+        body: new URLSearchParams({
+          user_name,
+          password,
+        }),
       }
     );
-    const balanceData = await balanceResponse.json();
-    const balance = Number(balanceData.balance || 0);
+
+    const balanceData = (await balanceRes.json()) as Partial<BalanceResponse>;
+
+    if (!balanceData || balanceData.balance == null) {
+      return reply.status(500).send({
+        success: false,
+        message: "Invalid balance API response",
+      });
+    }
+
+    const balance = Number(balanceData.balance);
 
     if (balance < 10) {
       return reply.status(400).send({
@@ -223,17 +240,31 @@ export const createGroupChat = async (request, reply) => {
       });
     }
 
-    // 2️⃣ Deduct 1 unit from balance
-    await fetch(
+    // ✅ 2. Deduct balance
+    const deductRes = await fetch(
       "https://deficall.defilinkteam.org/api/service-balance-deduct.php",
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ user_name, password, amount: "10" }),
+        body: new URLSearchParams({
+          user_name,
+          password,
+          amount: "1",
+        }),
       }
     );
 
-    // 3️⃣ Validate required fields
+    const deductData = await deductRes.json();
+
+    // Optional: check deduct success if API returns status
+    if (!deductRes.ok) {
+      return reply.status(500).send({
+        success: false,
+        message: "Failed to deduct balance",
+      });
+    }
+
+    // ✅ 3. Validate required fields
     if (!userIds || !adminId) {
       return reply.status(400).send({
         success: false,
@@ -241,11 +272,13 @@ export const createGroupChat = async (request, reply) => {
       });
     }
 
-    // 4️⃣ Parse userIds
-    let userIdArray;
+    // ✅ 4. Parse userIds
+    let userIdArray: number[];
     try {
-      userIdArray = Array.isArray(userIds) ? userIds : JSON.parse(userIds);
-    } catch (error) {
+      userIdArray = Array.isArray(userIds)
+        ? userIds
+        : JSON.parse(userIds);
+    } catch {
       return reply.status(400).send({
         success: false,
         message: "userIds must be a valid JSON array",
@@ -271,7 +304,7 @@ export const createGroupChat = async (request, reply) => {
 
     const allUserIds = [...new Set([...userIdsInt, adminIdInt])];
 
-    // 5️⃣ Check users exist in DB
+    // ✅ 5. Check users exist
     const usersExist = await prisma.user.findMany({
       where: { id: { in: allUserIds } },
     });
@@ -283,13 +316,15 @@ export const createGroupChat = async (request, reply) => {
       });
     }
 
+    // ✅ 6. Prepare data
     const avatar = request.file?.filename || null;
     const isProValue = is_pro != null ? String(is_pro) : null;
     const priceValue = price != null ? String(price) : null;
-    const descriptionValue = description != null ? String(description) : null;
+    const descriptionValue =
+      description != null ? String(description) : null;
     const createdBy = adminId != null ? String(adminId) : null;
 
-    // 6️⃣ Create conversation
+    // ✅ 7. Create conversation
     const conversation = await prisma.conversation.create({
       data: {
         name: name || null,
@@ -308,14 +343,19 @@ export const createGroupChat = async (request, reply) => {
         },
       },
       include: {
-        members: { include: { user: true } },
+        members: {
+          include: { user: true },
+        },
       },
     });
 
+    // ✅ 8. Format response
     const formattedConversation = {
       ...conversation,
-      avatar: conversation.avatar ? getImageUrl(conversation.avatar) : null,
-      members: conversation.members.map((member) => ({
+      avatar: conversation.avatar
+        ? getImageUrl(conversation.avatar)
+        : null,
+      members: conversation.members.map((member: any) => ({
         ...member,
         user: member.user
           ? {
@@ -329,38 +369,45 @@ export const createGroupChat = async (request, reply) => {
       messages: [],
     };
 
-    // 7️⃣ Emit socket event
+    // ✅ 9. Emit socket event
     setImmediate(() => {
       try {
         const creatorId = adminIdInt;
+
         const recipientIds = conversation.members
-          .filter((m) => m.userId !== creatorId)
-          .map((m) => m.userId.toString());
+          .filter((m: any) => m.userId !== creatorId)
+          .map((m: any) => m.userId.toString());
 
         if (recipientIds.length > 0) {
-          request.server.io.to(recipientIds).emit("conversation_created", {
-            success: true,
-            message: "Group chat created successfully",
-            data: formattedConversation,
-          });
+          request.server.io
+            .to(recipientIds)
+            .emit("conversation_created", {
+              success: true,
+              message: "Group chat created successfully",
+              data: formattedConversation,
+            });
         }
       } catch (error) {
         request.log.error(error, "Socket emit error");
       }
     });
 
-    // 8️⃣ Return success
+    // ✅ 10. Return success
     return reply.status(201).send({
       success: true,
       message: "Group chat created successfully",
       data: formattedConversation,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Full error:", error);
+
     return reply.status(500).send({
       success: false,
       message: "Something went wrong",
-      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : undefined,
     });
   }
 };

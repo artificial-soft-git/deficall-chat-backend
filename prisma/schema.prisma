@@ -102,6 +102,8 @@ model ConversationMember {
   isMute Boolean   @default(false)
   muteAt DateTime?
 
+  join_timestamp String?
+  
   @@unique([userId, conversationId])
   @@index([conversationId, isDeleted])
   @@index([userId, isDeleted, isArchived])

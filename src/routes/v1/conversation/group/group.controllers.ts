@@ -194,6 +194,228 @@ type BalanceResponse = {
   balance?: number | string;
 };
 
+// export const createGroupChat = async (request: any, reply: any) => {
+//   try {
+//     const {
+//       name,
+//       userIds,
+//       adminId,
+//       is_pro,
+//       price,
+//       description,
+//       user_name,
+//       password,
+//     } = request.body;
+
+//     const prisma = request.server.prisma;
+
+//     // ✅ 1 & 2. Only check & deduct balance if is_pro === 'yes'
+//     if (String(is_pro).toLowerCase() === "yes") {
+//       const balanceRes = await fetch(
+//         "https://deficall.defilinkteam.org/api/service-balance.php",
+//         {
+//           method: "POST",
+//           headers: { "Content-Type": "application/x-www-form-urlencoded" },
+//           body: new URLSearchParams({
+//             user_name,
+//             password,
+//           }),
+//         }
+//       );
+
+//       const balanceData = (await balanceRes.json()) as Partial<BalanceResponse>;
+
+//       if (!balanceData || balanceData.balance == null) {
+//         return reply.status(500).send({
+//           success: false,
+//           message: "Invalid balance API response",
+//         });
+//       }
+
+//       const balance = Number(balanceData.balance);
+
+//       if (balance < 10) {
+//         return reply.status(400).send({
+//           success: false,
+//           message: "Insufficient balance",
+//         });
+//       }
+
+//       // ✅ Deduct balance
+//       const deductRes = await fetch(
+//         "https://deficall.defilinkteam.org/api/service-balance-deduct.php",
+//         {
+//           method: "POST",
+//           headers: { "Content-Type": "application/x-www-form-urlencoded" },
+//           body: new URLSearchParams({
+//             user_name,
+//             password,
+//             amount: "10",
+//           }),
+//         }
+//       );
+
+//       if (!deductRes.ok) {
+//         return reply.status(500).send({
+//           success: false,
+//           message: "Failed to deduct balance",
+//         });
+//       }
+//     }
+
+//     // ✅ 3. Validate required fields
+//     if (!userIds || !adminId) {
+//       return reply.status(400).send({
+//         success: false,
+//         message: "userIds and adminId are required",
+//       });
+//     }
+
+//     // ✅ 4. Parse userIds
+//     let userIdArray: number[];
+//     try {
+//       userIdArray = Array.isArray(userIds)
+//         ? userIds
+//         : JSON.parse(userIds);
+//     } catch {
+//       return reply.status(400).send({
+//         success: false,
+//         message: "userIds must be a valid JSON array",
+//       });
+//     }
+
+//     const userIdsInt = userIdArray.map(Number).filter((id) => !isNaN(id));
+//     const adminIdInt = parseInt(adminId);
+
+//     if (isNaN(adminIdInt)) {
+//       return reply.status(400).send({
+//         success: false,
+//         message: "Invalid adminId",
+//       });
+//     }
+
+//     if (userIdsInt.length === 0) {
+//       return reply.status(400).send({
+//         success: false,
+//         message: "userIds must be non-empty",
+//       });
+//     }
+
+//     const allUserIds = [...new Set([...userIdsInt, adminIdInt])];
+
+//     // ✅ 5. Check users exist
+//     const usersExist = await prisma.user.findMany({
+//       where: { id: { in: allUserIds } },
+//     });
+
+//     if (usersExist.length !== allUserIds.length) {
+//       return reply.status(404).send({
+//         success: false,
+//         message: "Some users not found",
+//       });
+//     }
+
+//     // ✅ 6. Prepare data
+//     const avatar = request.file?.filename || null;
+//     const isProValue = is_pro != null ? String(is_pro) : null;
+//     const priceValue = price != null ? String(price) : null;
+//     const descriptionValue =
+//       description != null ? String(description) : null;
+//     const createdBy = adminId != null ? String(adminId) : null;
+
+//     // ✅ 7. Create conversation
+//     const conversation = await prisma.conversation.create({
+//       data: {
+//         name: name || null,
+//         avatar,
+//         adminIds: [adminIdInt],
+//         isGroup: true,
+//         is_pro: isProValue,
+//         price: priceValue,
+//         description: descriptionValue,
+//         created_by: createdBy,
+//         members: {
+//           create: allUserIds.map((id) => ({
+//             userId: id,
+//             isAdmin: id === adminIdInt,
+//           })),
+//         },
+//       },
+//       include: {
+//         members: {
+//           include: { user: true },
+//         },
+//       },
+//     });
+
+//     // ✅ 8. Format response
+//     const formattedConversation = {
+//       ...conversation,
+//       avatar: conversation.avatar
+//         ? getImageUrl(conversation.avatar)
+//         : null,
+//       members: conversation.members.map((member: any) => ({
+//         ...member,
+//         user: member.user
+//           ? {
+//               ...member.user,
+//               avatar: member.user.avatar
+//                 ? FileService.avatarUrl(member.user.avatar)
+//                 : null,
+//             }
+//           : null,
+//       })),
+//       messages: [],
+//     };
+
+//     // ✅ 9. Emit socket event
+//     setImmediate(() => {
+//       try {
+//         const creatorId = adminIdInt;
+
+//         const recipientIds = conversation.members
+//           .filter((m: any) => m.userId !== creatorId)
+//           .map((m: any) => m.userId.toString());
+
+//         if (recipientIds.length > 0) {
+//           request.server.io
+//             .to(recipientIds)
+//             .emit("conversation_created", {
+//               success: true,
+//               message: "Group chat created successfully",
+//               data: formattedConversation,
+//             });
+//         }
+//       } catch (error) {
+//         request.log.error(error, "Socket emit error");
+//       }
+//     });
+
+//     // ✅ 10. Return success
+//     return reply.status(201).send({
+//       success: true,
+//       message: "Group chat created successfully",
+//       data: formattedConversation,
+//     });
+//   } catch (error: any) {
+//     console.error("Full error:", error);
+
+//     return reply.status(500).send({
+//       success: false,
+//       message: "Something went wrong",
+//       error:
+//         process.env.NODE_ENV === "development"
+//           ? error.message
+//           : undefined,
+//     });
+//   }
+// };
+
+// ============================================================================
+// UPDATE GROUP PERMISSIONS HELPERS
+// ============================================================================
+
+
 export const createGroupChat = async (request: any, reply: any) => {
   try {
     const {
@@ -219,6 +441,7 @@ export const createGroupChat = async (request: any, reply: any) => {
           body: new URLSearchParams({
             user_name,
             password,
+            type: "1"
           }),
         }
       );
@@ -250,6 +473,7 @@ export const createGroupChat = async (request: any, reply: any) => {
           body: new URLSearchParams({
             user_name,
             password,
+            type: "1",
             amount: "10",
           }),
         }
@@ -410,10 +634,6 @@ export const createGroupChat = async (request: any, reply: any) => {
     });
   }
 };
-
-// ============================================================================
-// UPDATE GROUP PERMISSIONS HELPERS
-// ============================================================================
 
 export const updateGroupPermissions = async (request: any, reply: any) => {
   try {

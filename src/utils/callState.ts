@@ -5,6 +5,9 @@ export interface CallData {
   with: string;
   status: CallStatus;
   type: CallType;
+  /** Canonical 1:1 call parties (same on both users’ map entries). */
+  callerId: string;
+  receiverId: string;
 }
 
 export interface ICECandidateBuffer {

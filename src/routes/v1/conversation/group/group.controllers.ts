@@ -432,60 +432,60 @@ export const createGroupChat = async (request: any, reply: any) => {
     const prisma = request.server.prisma;
 
     // ✅ 1 & 2. Only check & deduct balance if is_pro === 'yes'
-    if (String(is_pro).toLowerCase() === "yes") {
-      const balanceRes = await fetch(
-        "https://deficall.defilinkteam.org/api/service-balance.php",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            user_name,
-            password,
-            type: "1"
-          }),
-        }
-      );
+    // if (String(is_pro).toLowerCase() === "yes") {
+    //   const balanceRes = await fetch(
+    //     "https://deficall.defilinkteam.org/api/service-balance.php",
+    //     {
+    //       method: "POST",
+    //       headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    //       body: new URLSearchParams({
+    //         user_name,
+    //         password,
+    //         type: "1"
+    //       }),
+    //     }
+    //   );
 
-      const balanceData = (await balanceRes.json()) as Partial<BalanceResponse>;
+    //   const balanceData = (await balanceRes.json()) as Partial<BalanceResponse>;
 
-      if (!balanceData || balanceData.balance == null) {
-        return reply.status(500).send({
-          success: false,
-          message: "Invalid balance API response",
-        });
-      }
+    //   if (!balanceData || balanceData.balance == null) {
+    //     return reply.status(500).send({
+    //       success: false,
+    //       message: "Invalid balance API response",
+    //     });
+    //   }
 
-      const balance = Number(balanceData.balance);
+    //   const balance = Number(balanceData.balance);
 
-      if (balance < 10) {
-        return reply.status(400).send({
-          success: false,
-          message: "Insufficient balance",
-        });
-      }
+    //   if (balance < 10) {
+    //     return reply.status(400).send({
+    //       success: false,
+    //       message: "Insufficient balance",
+    //     });
+    //   }
 
-      // ✅ Deduct balance
-      const deductRes = await fetch(
-        "https://deficall.defilinkteam.org/api/service-balance-deduct.php",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            user_name,
-            password,
-            type: "1",
-            amount: "10",
-          }),
-        }
-      );
+    //   // ✅ Deduct balance
+    //   const deductRes = await fetch(
+    //     "https://deficall.defilinkteam.org/api/service-balance-deduct.php",
+    //     {
+    //       method: "POST",
+    //       headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    //       body: new URLSearchParams({
+    //         user_name,
+    //         password,
+    //         type: "1",
+    //         amount: "10",
+    //       }),
+    //     }
+    //   );
 
-      if (!deductRes.ok) {
-        return reply.status(500).send({
-          success: false,
-          message: "Failed to deduct balance",
-        });
-      }
-    }
+    //   if (!deductRes.ok) {
+    //     return reply.status(500).send({
+    //       success: false,
+    //       message: "Failed to deduct balance",
+    //     });
+    //   }
+    // }
 
     // ✅ 3. Validate required fields
     if (!userIds || !adminId) {

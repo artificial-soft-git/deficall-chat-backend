@@ -601,11 +601,15 @@ export default fp(async (fastify) => {
           with: receiverId,
           status: "calling",
           type: callType,
+          callerId,
+          receiverId,
         });
         activeCalls.set(receiverId, {
           with: callerId,
           status: "calling",
           type: callType,
+          callerId,
+          receiverId,
         });
 
         //---------------------------------------------------
@@ -668,6 +672,8 @@ export default fp(async (fastify) => {
           with: callerIdLocal,
           status: "in_call",
           type: callData.type,
+          callerId: callData.callerId,
+          receiverId: callData.receiverId,
         });
 
         // Update call history status to ONGOING
@@ -911,14 +917,17 @@ export default fp(async (fastify) => {
 
           clearIceCandidateBuffer(callerId, receiverId);
 
+          const callEndedPayload = {
+            endedBy: endedByUserId,
+            reason: "ended_by_user" as const,
+            callerId: String(callerId),
+            receiverId: String(receiverId),
+            callType,
+          };
+          io.to(callerId).emit("call_ended", callEndedPayload);
+          io.to(receiverId).emit("call_ended", callEndedPayload);
+
           const opponentId = endedByUserId === callerId ? receiverId : callerId;
-          const opponentSockets = getSocketsForUser(opponentId);
-          if (opponentSockets && opponentSockets.size > 0) {
-            io.to(opponentId).emit("call_ended", {
-              endedBy: endedByUserId,
-              reason: "ended_by_user",
-            });
-          }
 
           // Update call history status - COMPLETED if accepted, CANCELED if not
           const callId = getCallHistoryForPair(callerId, receiverId);
@@ -1770,14 +1779,15 @@ export default fp(async (fastify) => {
             .catch(() => {});
         }
 
-        // Emit to all sockets of the peer
-        const peerSockets = getSocketsForUser(peerId);
-        if (peerSockets && peerSockets.size > 0) {
-          io.to(peerId).emit("call_ended", {
-            senderId: userId,
-            reason: "disconnected",
-          });
-        }
+        const callEndedPayload = {
+          endedBy: userId,
+          reason: "disconnected" as const,
+          callerId: call.callerId,
+          receiverId: call.receiverId,
+          callType: call.type,
+        };
+        io.to(userId).emit("call_ended", callEndedPayload);
+        io.to(peerId).emit("call_ended", callEndedPayload);
       }
 
       io.emit("online-users", getOnlineUserIds());

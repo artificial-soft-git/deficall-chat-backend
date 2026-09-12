@@ -182,7 +182,7 @@ export const getMyConversationsList = async (request, reply) => {
     const parsePagination = parsePaginationParams(request.query);
 
     const whereClause = {
-      publication_status: 1,
+      //publication_status: 1,
       members: {
         some: {
           userId: currentUserId,

@@ -15,6 +15,7 @@ model User {
   password String?
   avatar   String?
   address  String?
+  admin_approval_status String?
   fcmToken Json    @default("[]")
 
   // Relations
